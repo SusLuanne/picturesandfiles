@@ -2,36 +2,66 @@ from flask import Flask, request, redirect
 import tweepy
 import requests
 import os
+import logging
+import secrets
 
 app = Flask(__name__)
 
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 # Twitter API credentials (Free Tier)
-CLIENT_ID = os.getenv("CLIENT_ID")  # Use environment variables
+CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-CALLBACK_URL = os.getenv("CALLBACK_URL", "https://profilechanger-7edj.onrender.com/callback")  # Update with your URL
+CALLBACK_URL = os.getenv("CALLBACK_URL", "https://profilechanger-7edj.onrender.com/callback")
 
 # Preset profile settings
-NEW_NAME = "Mal0 Clone"
-NEW_BIO = "Lovin' being a nice mal0 clone~"
-PROFILE_PIC_PATH = "theme_pfp.jpg"  # Local path or URL
-BANNER_PATH = "theme_banner.jpg"    # Local path or URL
+NEW_NAME = "Mal0 Clone~"
+NEW_BIO = "Just Another Mal0 Clone~"
+PROFILE_PIC_PATH = "theme_pfp.jpg"  # Ensure this exists in repo
+BANNER_PATH = "theme_banner.jpg"    # Ensure this exists in repo
+
+# Generate a code verifier and challenge for OAuth 2.0 PKCE
+CODE_VERIFIER = secrets.token_urlsafe(64)  # Random string, 43-128 characters
+CODE_CHALLENGE = CODE_VERIFIER  # Plain challenge (no hashing for simplicity)
+
+# Root route
+@app.route('/')
+def index():
+    logger.debug("Accessed root URL")
+    return "Welcome to ThemeVibes! <a href='/start'>Click here to update your Twitter profile</a>."
 
 # Step 1: Generate OAuth 2.0 authorization URL
 @app.route('/start')
 def start():
+    if not CLIENT_ID or not CLIENT_SECRET:
+        logger.error("Missing Twitter API credentials")
+        return "Error: Missing Twitter API credentials", 500
+    logger.debug("Generating OAuth URL")
     auth_url = (
         f"https://twitter.com/i/oauth2/authorize?"
         f"response_type=code&client_id={CLIENT_ID}&redirect_uri={CALLBACK_URL}&"
-        f"scope=tweet.read%20users.read%20users.write&"
-        f"state=state&code_challenge=challenge&code_challenge_method=plain"
+        f"scope=tweet.read%20users.read%20users.edit&"
+        f"state={secrets.token_urlsafe(16)}&code_challenge={CODE_CHALLENGE}&"
+        f"code_challenge_method=plain"
     )
+    logger.debug(f"Auth URL: {auth_url}")
     return redirect(auth_url)
 
 # Step 2: Handle callback and update profile
 @app.route('/callback')
 def callback():
+    logger.debug(f"Callback received with args: {request.args}")
     code = request.args.get('code')
+    state = request.args.get('state')
+    error = request.args.get('error')
+
+    if error:
+        logger.error(f"OAuth error: {error}, {request.args.get('error_description')}")
+        return f"Error: OAuth failed - {error}: {request.args.get('error_description')}", 400
     if not code:
+        logger.error("No authorization code provided")
         return "Error: No authorization code provided", 400
 
     # Exchange code for access token
@@ -42,16 +72,20 @@ def callback():
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
         "redirect_uri": CALLBACK_URL,
-        "code_verifier": "challenge"
+        "code_verifier": CODE_VERIFIER
     }
     try:
+        logger.debug("Requesting access token")
         response = requests.post(token_url, data=data, timeout=10)
-        response.raise_for_status()  # Raise exception for bad status
+        response.raise_for_status()
+        logger.debug(f"Token response: {response.json()}")
     except requests.RequestException as e:
+        logger.error(f"Failed to get access token: {str(e)}")
         return f"Error: Failed to get access token ({str(e)})", 500
 
     access_token = response.json().get("access_token")
     if not access_token:
+        logger.error("No access token received")
         return "Error: No access token received", 400
 
     # Authenticate with Tweepy
@@ -65,15 +99,24 @@ def callback():
 
     # Update profile
     try:
+        logger.debug("Updating profile")
         api.update_profile(name=NEW_NAME, description=NEW_BIO)
-        api.update_profile_image(PROFILE_PIC_PATH)
-        api.update_profile_banner(BANNER_PATH)
+        if os.path.exists(PROFILE_PIC_PATH):
+            api.update_profile_image(PROFILE_PIC_PATH)
+        else:
+            logger.error(f"Profile image not found: {PROFILE_PIC_PATH}")
+        if os.path.exists(BANNER_PATH):
+            api.update_profile_banner(BANNER_PATH)
+        else:
+            logger.error(f"Banner image not found: {BANNER_PATH}")
+        logger.info("Profile updated successfully")
         return "Profile updated successfully! <a href='https://x.com'>Check your Twitter profile</a>."
     except tweepy.TweepyException as e:
+        logger.error(f"Error updating profile: {str(e)}")
         if "Rate limit exceeded" in str(e):
             return "Rate limit exceeded. Please try again in 15 minutes.", 429
         return f"Error updating profile: {str(e)}", 500
 
 if __name__ == '__main__':
-    port = int(os.getenv("PORT", 5000))  # Use Render/Glitch PORT or default to 5000
+    port = int(os.getenv("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
