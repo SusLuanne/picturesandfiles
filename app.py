@@ -8,7 +8,7 @@ app = Flask(__name__)
 # Twitter API credentials (Free Tier)
 CLIENT_ID = "a3NXelQ0RmQ3NmhLOVBnNm1OcjU6MTpjaQ"  # Replace with your Client ID
 CLIENT_SECRET = "xLz0DlOE1UbxjHdGzbHq1VmgClhOR44q1Q7tFckTS8sHqeDLOi"  # Replace with your Client Secret
-CALLBACK_URL = "https://yourwebsite.com/callback"  # Replace with your deployed URL
+CALLBACK_URL = "https://profilechanger-7edj.onrender.com/callback"  # Replace with your deployed URL
 
 # Preset profile settings
 NEW_NAME = "Mal0 Clone"
