@@ -6,15 +6,15 @@ import os
 app = Flask(__name__)
 
 # Twitter API credentials (Free Tier)
-CLIENT_ID = "a3NXelQ0RmQ3NmhLOVBnNm1OcjU6MTpjaQ"  # Replace with your Client ID
-CLIENT_SECRET = "xLz0DlOE1UbxjHdGzbHq1VmgClhOR44q1Q7tFckTS8sHqeDLOi"  # Replace with your Client Secret
-CALLBACK_URL = "https://profilechanger-7edj.onrender.com/callback"  # Replace with your deployed URL
+CLIENT_ID = os.getenv("CLIENT_ID")  # Use environment variables
+CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+CALLBACK_URL = os.getenv("CALLBACK_URL", "https://profilechanger-7edj.onrender.com/callback")  # Update with your URL
 
 # Preset profile settings
 NEW_NAME = "Mal0 Clone"
-NEW_BIO = "Lovin' being a PERFECT mal0 clone~"
-PROFILE_PIC_PATH = "https://raw.githubusercontent.com/SusLuanne/picturesandfiles/refs/heads/main/theme_pfp.jpg"  # Local path or URL (e.g., GitHub raw URL)
-BANNER_PATH = "https://raw.githubusercontent.com/SusLuanne/picturesandfiles/refs/heads/main/theme_banner.jpg"    # Local path or URL
+NEW_BIO = "Lovin' being a nice mal0 clone~"
+PROFILE_PIC_PATH = "theme_pfp.jpg"  # Local path or URL
+BANNER_PATH = "theme_banner.jpg"    # Local path or URL
 
 # Step 1: Generate OAuth 2.0 authorization URL
 @app.route('/start')
@@ -44,10 +44,15 @@ def callback():
         "redirect_uri": CALLBACK_URL,
         "code_verifier": "challenge"
     }
-    response = requests.post(token_url, data=data)
-    if response.status_code != 200:
-        return f"Error: Failed to get access token ({response.text})", 400
+    try:
+        response = requests.post(token_url, data=data, timeout=10)
+        response.raise_for_status()  # Raise exception for bad status
+    except requests.RequestException as e:
+        return f"Error: Failed to get access token ({str(e)})", 500
+
     access_token = response.json().get("access_token")
+    if not access_token:
+        return "Error: No access token received", 400
 
     # Authenticate with Tweepy
     auth = tweepy.OAuth2UserHandler(
@@ -63,11 +68,12 @@ def callback():
         api.update_profile(name=NEW_NAME, description=NEW_BIO)
         api.update_profile_image(PROFILE_PIC_PATH)
         api.update_profile_banner(BANNER_PATH)
-        return "Profile updated successfully! <a href='https://twitter.com'>Check your Twitter profile</a>."
+        return "Profile updated successfully! <a href='https://x.com'>Check your Twitter profile</a>."
     except tweepy.TweepyException as e:
         if "Rate limit exceeded" in str(e):
             return "Rate limit exceeded. Please try again in 15 minutes.", 429
         return f"Error updating profile: {str(e)}", 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    port = int(os.getenv("PORT", 5000))  # Use Render/Glitch PORT or default to 5000
+    app.run(host='0.0.0.0', port=port)
