@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect
+from flask import Flask, request, redirect, session
 import tweepy
 import requests
 import os
@@ -6,6 +6,7 @@ import logging
 import secrets
 
 app = Flask(__name__)
+app.secret_key = secrets.token_urlsafe(32)  # Secure key for sessions
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -18,19 +19,15 @@ CALLBACK_URL = os.getenv("CALLBACK_URL", "https://profilechanger-7edj.onrender.c
 
 # Preset profile settings
 NEW_NAME = "Mal0 Clone~"
-NEW_BIO = "Just Another Mal0 Clone~"
+NEW_BIO = "Just another part of a perfect mal0 clone~"
 PROFILE_PIC_PATH = "theme_pfp.jpg"  # Ensure this exists in repo
 BANNER_PATH = "theme_banner.jpg"    # Ensure this exists in repo
-
-# Generate a code verifier and challenge for OAuth 2.0 PKCE
-CODE_VERIFIER = secrets.token_urlsafe(64)  # Random string, 43-128 characters
-CODE_CHALLENGE = CODE_VERIFIER  # Plain challenge (no hashing for simplicity)
 
 # Root route
 @app.route('/')
 def index():
     logger.debug("Accessed root URL")
-    return "Welcome to ThemeVibes! <a href='/start'>Click here to update your Twitter profile</a>."
+    return "Welcome to Mal0~ <a href='/start'>Click here to update your Twitter profile</a>."
 
 # Step 1: Generate OAuth 2.0 authorization URL
 @app.route('/start')
@@ -38,12 +35,17 @@ def start():
     if not CLIENT_ID or not CLIENT_SECRET:
         logger.error("Missing Twitter API credentials")
         return "Error: Missing Twitter API credentials", 500
+    
+    # Generate and store code verifier and state
+    session['code_verifier'] = secrets.token_urlsafe(64)  # 43-128 characters
+    session['state'] = secrets.token_urlsafe(16)
+    
     logger.debug("Generating OAuth URL")
     auth_url = (
         f"https://twitter.com/i/oauth2/authorize?"
         f"response_type=code&client_id={CLIENT_ID}&redirect_uri={CALLBACK_URL}&"
         f"scope=tweet.read%20users.read%20users.edit&"
-        f"state={secrets.token_urlsafe(16)}&code_challenge={CODE_CHALLENGE}&"
+        f"state={session['state']}&code_challenge={session['code_verifier']}&"
         f"code_challenge_method=plain"
     )
     logger.debug(f"Auth URL: {auth_url}")
@@ -61,8 +63,11 @@ def callback():
         logger.error(f"OAuth error: {error}, {request.args.get('error_description')}")
         return f"Error: OAuth failed - {error}: {request.args.get('error_description')}", 400
     if not code:
-        logger.error("No authorization code provided")
+        logger.error(f"No authorization code provided, args: {request.args}")
         return "Error: No authorization code provided", 400
+    if state != session.get('state'):
+        logger.error(f"State mismatch: received {state}, expected {session.get('state')}")
+        return "Error: State parameter mismatch", 400
 
     # Exchange code for access token
     token_url = "https://api.twitter.com/2/oauth2/token"
@@ -72,10 +77,10 @@ def callback():
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
         "redirect_uri": CALLBACK_URL,
-        "code_verifier": CODE_VERIFIER
+        "code_verifier": session.get('code_verifier')
     }
     try:
-        logger.debug("Requesting access token")
+        logger.debug(f"Requesting access token with data: {data}")
         response = requests.post(token_url, data=data, timeout=10)
         response.raise_for_status()
         logger.debug(f"Token response: {response.json()}")
