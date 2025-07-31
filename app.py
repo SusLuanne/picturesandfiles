@@ -13,8 +13,8 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Twitter API credentials (Free Tier)
-CLIENT_ID = os.getenv("CLIENT_ID")
-CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+CLIENT_ID = os.getenv("N0tQcFp2ZmdRRERKYUJGOGI1WVE6MTpjaQ")
+CLIENT_SECRET = os.getenv("SYSZUDepmFfuEHp5tuWnPqoxUQTzNPp87wKERymDoksXqnFJB-")
 CALLBACK_URL = os.getenv("CALLBACK_URL", "https://profilechanger-7edj.onrender.com/callback")
 
 # Preset profile settings
