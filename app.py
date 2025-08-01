@@ -20,15 +20,22 @@ ACCESS_TOKEN_URL = "https://api.twitter.com/oauth/access_token"
 @app.route("/")
 def index():
     return render_template("index.html")
-
+    
 @app.route("/login")
 def login():
-    twitter = OAuth1Session(API_KEY, client_secret=API_SECRET, callback_uri=CALLBACK_URL)
-    fetch_response = twitter.fetch_request_token(REQUEST_TOKEN_URL)
-    session["oauth_token"] = fetch_response.get("oauth_token")
-    session["oauth_token_secret"] = fetch_response.get("oauth_token_secret")
-    authorization_url = twitter.authorization_url(AUTHORIZATION_URL)
-    return redirect(authorization_url)
+    try:
+        twitter = OAuth1Session(API_KEY, client_secret=API_SECRET, callback_uri=CALLBACK_URL)
+        fetch_response = twitter.fetch_request_token(REQUEST_TOKEN_URL)
+        print("Request Token Fetch Response:", fetch_response)  # Debugging output
+        session["oauth_token"] = fetch_response.get("oauth_token")
+        session["oauth_token_secret"] = fetch_response.get("oauth_token_secret")
+        authorization_url = twitter.authorization_url(AUTHORIZATION_URL)
+        print("Authorization URL:", authorization_url)  # Debugging output
+        return redirect(authorization_url)
+    except Exception as e:
+        print("Error during login:", e)  # Log the error
+        return "Error during login: " + str(e), 500  # Return the error message
+
 
 @app.route("/callback")
 def callback():
@@ -65,3 +72,4 @@ def callback():
 
 if __name__ == "__main__":
     app.run(debug=True)
+
