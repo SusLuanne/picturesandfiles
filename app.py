@@ -58,7 +58,7 @@ def callback():
     api = tweepy.API(auth)
 
     # Modify user profile here
-    api.update_profile(name="Mal0 Clone~", description="Just another perfect clone of Mal0~")
+    api.update_profile(name="Ralsei Drone #___", description="One of Toriel's Cute Drones~")
 
     # Update profile image (theme_pfp.jpg)
     with open("static/theme_pfp.jpg", "rb") as image_file:
